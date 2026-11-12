@@ -1,0 +1,18 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+      # The shared workflow also requires at least one label, so it has to
+      # re-run when labels change.
+      - labeled
+      - unlabeled
+
+jobs:
+  pr-validation:
+    if: github.actor != 'dependabot[bot]'
+    uses: clouddrove/github-shared-workflows/.github/workflows/pr-checks.yml@v2

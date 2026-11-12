@@ -1,0 +1,3 @@
+minimum_severity: MEDIUM
+exclude:
+  - general-secrets-no-plaintext-exposure

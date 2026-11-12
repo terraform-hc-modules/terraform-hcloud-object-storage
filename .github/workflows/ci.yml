@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Terraform Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Init
+        run: terraform init -backend=false
+
+      - name: Test
+        run: terraform test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: latest
+
+      - name: Init TFLint
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Run TFLint
+        run: tflint -f compact --recursive
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup terraform-docs
+        uses: jaxxstorm/action-install-gh-release@v3.0.0
+        with:
+          repo: terraform-docs/terraform-docs
+
+      - name: Check every README with terraform-docs markers
+        run: |
+          set -euo pipefail
+          config=""
+          if [ -f .terraform-docs.yml ]; then
+            config="$PWD/.terraform-docs.yml"
+          fi
+          status=0
+          while IFS= read -r readme; do
+            dir="$(dirname "$readme")"
+            if [ -n "$config" ]; then
+              terraform-docs -c "$config" "$dir" >/dev/null
+            else
+              terraform-docs markdown table --output-file README.md --output-mode inject "$dir" >/dev/null
+            fi
+          done < <(grep -rl BEGIN_TF_DOCS --include=README.md . | grep -v '/\.terraform/')
+          if ! git diff --exit-code; then
+            echo "::error::terraform-docs output is out of date; run terraform-docs and commit the result"
+            status=1
+          fi
+          exit $status

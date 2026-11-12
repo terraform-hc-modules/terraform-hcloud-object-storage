@@ -1,0 +1,23 @@
+name: Auto merge
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  checks: read
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.actor == 'dependabot[bot]'
+    uses: clouddrove/github-shared-workflows/.github/workflows/pr-auto-merge.yml@v2
+    with:
+      # No cloud credentials exist here, so the wait-list is the set of checks
+      # that actually run on a dependabot PR in this repo rather than the
+      # AWS/tfsec defaults. pr-validation is excluded on purpose: it skips
+      # dependabot, so waiting on it would never resolve.
+      azure_cloud: true
+      tfchecks_azure: '["Terraform Test", "Lint", "Documentation"]'
+    secrets:
+      GITHUB: ${{ secrets.GITHUB || github.token }}

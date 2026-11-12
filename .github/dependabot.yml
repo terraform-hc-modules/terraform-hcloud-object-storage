@@ -1,0 +1,35 @@
+# Dependabot keeps GitHub Actions and Terraform constraints current.
+# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
+version: 2
+updates:
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    assignees:
+      - "clouddrove-ci"
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "terraform"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    assignees:
+      - "clouddrove-ci"
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "terraform"
+    directory: "/examples/complete"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    assignees:
+      - "clouddrove-ci"
+    labels:
+      - "dependencies"

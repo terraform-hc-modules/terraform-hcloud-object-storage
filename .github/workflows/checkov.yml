@@ -1,0 +1,16 @@
+name: Security Scan
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  checkov:
+    if: github.actor != 'dependabot[bot]'
+    uses: clouddrove/github-shared-workflows/.github/workflows/security-checkov.yml@v2
+    with:
+      directory: '.'
+      continue_on_error: 'false'
+      skip_check: 'CKV_TF_1,CKV_TF_2'
