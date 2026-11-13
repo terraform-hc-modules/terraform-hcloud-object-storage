@@ -4,12 +4,70 @@ on:
   pull_request:
     types: [closed]
 
+permissions:
+  contents: write
+
 jobs:
-  handle-release:
-    if: github.event.pull_request.merged == true && github.actor != 'dependabot[bot]'
-    uses: clouddrove/github-shared-workflows/.github/workflows/release-tag.yml@v2
-    with:
-      target_branch: ${{ github.event.pull_request.base.ref }}
-      tag_format: "vX.Y.Z"
-    secrets:
-      GITHUB: ${{ secrets.GITHUB || github.token }}
+  release:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.actor != 'dependabot[bot]' &&
+      (contains(github.event.pull_request.labels.*.name, 'major') ||
+       contains(github.event.pull_request.labels.*.name, 'minor') ||
+       contains(github.event.pull_request.labels.*.name, 'patch'))
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+      BRANCH: ${{ github.event.pull_request.base.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+
+      - name: Tag next version
+        id: tag
+        run: |
+          latest=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          IFS=. read -r major minor patch <<< "${latest#v}"
+          case ",$LABELS," in
+            *,major,*) major=$((major + 1)); minor=0; patch=0 ;;
+            *,minor,*) minor=$((minor + 1)); patch=0 ;;
+            *) patch=$((patch + 1)) ;;
+          esac
+          tag="v$major.$minor.$patch"
+          git config user.name clouddrove-ci
+          git config user.email 84795582+clouddrove-ci@users.noreply.github.com
+          git tag -a "$tag" -m "$tag" "${{ github.event.pull_request.merge_commit_sha }}"
+          git push origin "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: changelog
+        uses: requarks/changelog-action@7ce6be4c4d2233ae2a943694ca34f23aeafa1054 # v1.11.0
+        with:
+          token: ${{ github.token }}
+          tag: ${{ steps.tag.outputs.tag }}
+          includeInvalidCommits: false
+          writeToFile: true
+          changelogFilePath: CHANGELOG.md
+          includeRefIssues: true
+          useGitmojis: true
+
+      - name: Publish release and commit CHANGELOG.md
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          NOTES: ${{ steps.changelog.outputs.changes }}
+        run: |
+          if [ -n "$NOTES" ]; then
+            gh release create "$TAG" --verify-tag --latest --title "$TAG" --notes "$NOTES"
+          else
+            gh release create "$TAG" --verify-tag --latest --title "$TAG" --generate-notes
+          fi
+          # ci/docs-only releases add nothing to the changelog
+          if git diff --quiet -- CHANGELOG.md; then exit 0; fi
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG.md for $TAG"
+          git pull --rebase origin "$BRANCH"
+          git push origin "HEAD:$BRANCH"
